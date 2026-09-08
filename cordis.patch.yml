@@ -1,0 +1,15 @@
+# ============================================================================
+# dsh-skill-meter —— DSH bundle patch
+# ============================================================================
+# 把 skill 状态挂件插进 Web profile 的配置树。与 whale 挂件同一种形态：
+# 一个 webServer 插件，注册路由 + 往 index.html 里塞一个 script。
+#
+# 安装（已在本机执行过；换机器时照下面两条跑，装完重启 dsh web 才加载）：
+#   dsh plugin --profile web add "E:/S_Software/deepseek-harness/plugins/dsh-skill-meter"
+# 卸载：
+#   dsh plugin --profile web remove dsh-skill-meter
+# ============================================================================
+
+- insert:
+    - id: dsh-skill-meter
+      name: dsh-skill-meter
