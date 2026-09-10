@@ -69,16 +69,28 @@ const usage = {
     { name: 'brand-new-skill', description: '磁盘读到的新条目', lit: true, count: 1, how: ['tool-call'], firstTurn: 6, lastTurn: 6 },
   ],
 }
+// 组件在 visible 时开了一个 20s 轮询。测试里绝不能放真定时器：它会一直挂住 Node 的
+// 事件循环，脚本跑完也不退出 —— 表现就是 npm test 报 exit 1 而输出一切正常，看不出原因。
+// 换成可数的假定时器，顺带把"visible 才开轮询、卸载要清掉"这两条也钉住。
+let timers = [], cleared = [], cleanups = []
+global.setInterval = (fn, ms) => { const id = { fn, ms }; timers.push(id); return id }
+global.clearInterval = (id) => { cleared.push(id) }
+const unmount = () => { const cs = cleanups; cleanups = []; cs.forEach((c) => c()) }
+
+// 侧边栏给的 scope.sessionId 是**带 session- 前缀的整 id**（宿主 mint 的就是这条，
+// 会话目录名也是这条）。这里按真形状取，免得再出现"测试里是 uuid、线上是整 id"的错位。
+const SESSION = 'session-11111111-2222-4333-8444-555555555555'
+
 let calls = 0
 global.fetch = async () => { calls++; return { ok: true, json: async () => usage } }
-const props = { scope: { sessionId: 'session-abc' }, visible: true, store: {}, tab: { id: 't', type: desc.id, title: 'Skill 用量' } }
+const props = { scope: { sessionId: SESSION }, visible: true, store: {}, tab: { id: 't', type: desc.id, title: 'Skill 用量' } }
 
 // 假 react 的 hooks 是全局数组：reset 只在每个场景开头调一次，
 // 第二次渲染必须留着 hooks，否则取回来的 data 会被抹掉（表现为列表空）。
-const reset = () => { idx = 0; hooks = []; effects = [] }
+const reset = () => { idx = 0; hooks = []; effects = []; timers = []; cleared = []; cleanups = [] }
 const render = (component) => { idx = 0; return component(props) }
 const runEffects = async () => {
-  effects.forEach((f) => f())
+  cleanups = effects.map((f) => f()).filter((c) => typeof c === 'function')
   await new Promise((r) => setImmediate(r))
   await new Promise((r) => setImmediate(r))
 }
@@ -96,6 +108,11 @@ for (const want of ['Skill 用量', 'dev-browser', 'x2', '模型加载', '首次
 assert.ok(flatFallback.includes('磁盘兜底'), '兜底态该标明清单来源')
 assert.ok(!flatFallback.includes('取数失败'), '不该出现失败条')
 assert.equal(desc.badge(), '3/4', '兜底态角标用服务端的读数')
+// visible 时该只开一个 20s 轮询；卸载要把定时器清掉，否则页面切走了还在打路由
+assert.equal(timers.length, 1, 'visible 时该只开一个轮询定时器，实际 ' + timers.length)
+assert.equal(timers[0].ms, 20000, '轮询间隔应为 20s')
+unmount()
+assert.equal(cleared.length, timers.length, '卸载该把轮询定时器清掉')
 
 // 4) 官方态：清单来自 remote.skills.list，描述与 whenToUse 都以宿主为准
 const catalogSkills = [
@@ -117,7 +134,7 @@ assert.equal(s4.got.length, 0, '官方清单可用时不该 warn：' + s4.got.jo
 reset()
 render(descOfficial.component)
 await runEffects()
-assert.deepEqual(listReq, { sessionId: 'session-abc' }, 'list 该按会话取')
+assert.deepEqual(listReq, { sessionId: SESSION }, 'list 该按会话取')
 const flatOfficial = flatOf(render(descOfficial.component))
 assert.ok(flatOfficial.includes('官方 skills/list'), '该标明清单来自宿主 Remote')
 assert.ok(!flatOfficial.includes('磁盘兜底'), '官方态不该出现兜底字样')
@@ -129,4 +146,30 @@ assert.ok(flatOfficial.includes('2 / 4 已点亮'), '官方态读数应为清单
 assert.ok(flatOfficial.includes('brand-new-skill'), '点亮了但不在官方清单里的条目该列出来')
 assert.ok(flatOfficial.includes('retired-skill'), '官方清单里的未点亮条目也该显示')
 assert.equal(descOfficial.badge(), '2/4', '官方态角标按清单内点亮数')
-console.log('client 冒烟通过：bundle 求值 / 缺服务各自 warn / 兜底态用磁盘清单 / 官方态走 remote.skills.list（含 whenToUse 与 modelInvocable），取数 ' + calls + ' 次')
+
+// 5) 服务端 ok:false（这个会话的存档没找到）：说清楚 + 官方清单照常渲染。
+//    这条是「侧边栏整页 HTTP 400」那个 bug 的界面侧钉子：
+//    以前服务端在这条分支上抛 ReferenceError，宿主只回空 body 的 400，
+//    页面就只剩红条「HTTP 400（改过服务端那半个文件而没重启 dsh web 就是这个）」，
+//    把真因（存档没找到）和排查方向（去重启）一起带偏。
+const noUsage = {
+  ok: false,
+  error: '这个会话的存档没找到（不拿别的会话顶上），会话 id: session-11111111-2222-4333-8444-555555555555',
+  session: 'session-11111111-2222-4333-8444-555555555555',
+  skills: usage.skills.map((s) => Object.assign({}, s, { lit: false, count: 0, how: [], firstTurn: null, lastTurn: null })),
+  lit: 0, total: 4, ghost: [], catalogSeen: [], notInCatalog: [],
+}
+global.fetch = async () => ({ ok: true, json: async () => noUsage })
+reset()
+render(descOfficial.component)
+await runEffects()
+const flatNoUsage = flatOf(render(descOfficial.component))
+assert.ok(flatNoUsage.includes('这个会话的存档没找到'), '服务端给的说明该原样显示出来')
+assert.ok(!flatNoUsage.includes('用量取数失败'), '存档没找到不是 HTTP 失败，不该报成红条')
+assert.ok(!flatNoUsage.includes('没重启'), '更不该提示去重启 dsh web（真因不是这个）')
+assert.ok(flatNoUsage.includes('官方 skills/list'), '取不到用量不影响清单来源标记')
+assert.ok(flatNoUsage.includes('retired-skill'), '官方清单条目照常渲染')
+assert.ok(flatNoUsage.includes('0 / 4 已点亮'), '取不到用量时读数应为 0/4')
+assert.equal(descOfficial.badge(), '0/4', '取不到用量时角标应为 0/4')
+
+console.log('client 冒烟通过：bundle 求值 / 缺服务各自 warn / 兜底态用磁盘清单 / 官方态走 remote.skills.list（含 whenToUse 与 modelInvocable）/ 存档没找到时黄条说明且清单照常渲染')

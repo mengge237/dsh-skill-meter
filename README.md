@@ -90,6 +90,7 @@ dsh plugin --profile web remove dsh-skill-meter
 
 - 全程只读：读 `~/.agents/skills`、`~/.dsh/sessions`，不写任何 dsh 数据，缓存只在内存里（存档 mtime+size 没变就不重复解压）。
 - 取"最近的存档"当当前会话；多开会话时可用 `/dsh-skill-meter/data.json?session=<id>` 指定。
+- **会话 id 就是带 `session-` 前缀的整条**（宿主 mint 的是 `session-<uuid>`，侧边栏 `props.scope.sessionId` 给的就是这条，会话目录名也是这条整 id —— 宿主用 `encodeSegment(id)` 当目录名）。所以取存档按整条 id 精确比，只给 uuid 那一半也能命中；点了名却找不到就明确回"没找到"，绝不回落到别的会话顶上。2026-09-10 之前这里写成 `p.includes('session-' + sessionId)`，前缀加了两遍，真页面每条请求都落进"没找到"分支，而那条分支还引用了一个不存在的 `query`，于是在宿主那里变成空 body 的 HTTP 400 —— 页面上只剩「用量取数失败：HTTP 400」，把真因和排查方向一起带偏。
 - 设置对话框没打开时不往里面插卡片（只留小徽标）；插的位置是 dialog 内右下角浮动，不隐藏、不改官方设置内容区的 DOM。
 - 与深海女仆皮肤的 hooks 同时改设置弹窗：本插件用 MutationObserver（400ms 节流）在节点被换掉时补回来。
 - `点亮但不在 catalog 快照里` 会单独提示，用来发现"磁盘上有但这次会话没发给模型"的 skill；反过来用过但清单里查不到（被删的 skill）会进 `ghost` 列表。
