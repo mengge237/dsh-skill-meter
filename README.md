@@ -39,7 +39,9 @@
 
 本包是双面板包：`exports["."]` 是 node 侧（注册 `/dsh-skill-meter/data.json` 路由），`exports["./client"]` 是浏览器侧（宿主客户端模块图里的 `window.__ModuleLoader__.load` bundle，`require('react')` 拿宿主的 react，`inject: ['betterSidebar', 'remote', 'remote.skills']` 后调 `registerTab`）。**服务端那半个文件改了要重启 `dsh web`**（重启会打断当前会话，由人自己点）；**浏览器侧 `lib/client.js` 只要刷新页面（Ctrl+R）**，不碰服务端也不用重启 —— 这一条是这次改动能当场验完的原因。
 
-装好之后先验服务端（插件路由不鉴权）：
+装好之后先验服务端。这条路由注册在 `ctx.webServer` 上（裸路由，不走宿主的浏览器鉴权），
+所以本包自己判来源：**Host 必须是 loopback、`sec-fetch-site` 不是 `cross-site`、有 `Origin` 时主机名要与 Host 一致**，
+不满足就 403；响应也不带 `Access-Control-Allow-Origin`。本机 shell 里的 `curl` 不受影响：
 
 ```bash
 curl -s "http://127.0.0.1:3080/dsh-skill-meter/data.json" | head -c 200   # ok:true + skills[] + lit/total/skillsRoot
@@ -54,6 +56,7 @@ curl -s "http://127.0.0.1:3080/dsh-skill-meter/data.json" | head -c 200   # ok:t
 
 ```bash
 node test/selftest.mjs      # 数据层：清单解析、多帧 zstd 逐帧解、点亮与幽灵
+node test/routes.mjs        # 服务端：假 ctx 跑 data.json，同源放行 / 跨站与 DNS 重绑定 403 / 不带跨域头
 node test/client-smoke.mjs  # 浏览器侧：假 react + 假 betterSidebar 跑 bundle 求值、
                             # 注册描述符完整性、两遍渲染后的全部读数与角标
 ```
