@@ -49,5 +49,22 @@ assert.equal(I.findTranscript('a b/c'), null, '非法 id 不许回落到最新�
 assert.equal(I.findTranscript(''), newest)
 
 console.log('会话 id 解析:', dirId, '->', I.findTranscript(dirId) === newest && I.findTranscript(uuidOf(dirId)) === newest ? '两种写法都命中' : '失败')
+// ---------------------------------------------------------------------------
+// 回归：视图配置的归一化。它是纯函数，所以这几条在 CI 上也钉得住 ——
+// 不需要机器上真有一份 ~/.dsh/skill-view.json（那条路只保证「读不到 / 读坏了也不抛」）。
+// 视图只决定侧边栏那张卡怎么摆，不许反过来影响「有哪些 skill」。
+// ---------------------------------------------------------------------------
+assert.deepEqual(I.normalizeView(null), [], '没有配置就是空，不该抛')
+assert.deepEqual(I.normalizeView({ groups: 'nope' }), [], 'groups 不是数组时按空处理')
+assert.deepEqual(I.normalizeView({ groups: [{ name: '', skills: ['a'] }, { skills: ['b'] }] }), [],
+  '没有 name 的组要丢掉（页面拿 name 当选项值与 key，空名会互相撞）')
+assert.deepEqual(I.normalizeView({ groups: [{ name: 'A', skills: ['x', 1, null, { n: 'y' }] }] }),
+  [{ name: 'A', skills: ['x'] }], 'skills 里只留字符串，别的丢掉')
+assert.deepEqual(I.normalizeView({ groups: [{ name: 'B' }] }), [{ name: 'B', skills: [] }],
+  '没写 skills 的组是空组不是坏组（空组要能显示出来）')
+assert.deepEqual(I.normalizeView({ groups: [{ name: 'A', skills: ['x'] }, { name: 'B', skills: ['x'] }] }),
+  [{ name: 'A', skills: ['x'] }, { name: 'B', skills: ['x'] }], '组顺序照原样，别去重排')
+assert.ok(Array.isArray(I.readView().groups), 'readView 永远给数组 —— 文件在不在都不许抛')
+console.log('视图归一化: 6 条断言通过，本机 skill-view.json', I.readView().groups.length, '组')
 console.log('数据层自检全过')
 

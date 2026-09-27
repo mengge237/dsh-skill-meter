@@ -33,6 +33,33 @@
 `whenToUse` 与 `modelInvocable` 都在）；显示 `磁盘兜底` 说明这次没拿到 Remote（宿主太老或没挂上），
 退回读 `~/.agents/skills/*/SKILL.md` 的 frontmatter。两条路都是我们自己跑过的。
 
+## 分组与排序（0.2.3 起：纯视图，不产生根、不产生容器）
+
+页头多了一个下拉框：组的名字、组的先后、组内谁在前，全都来自 `~/.dsh/skill-view.json`。**它只决定「怎么摆」，
+不决定「有哪些」** —— 清单永远以宿主 `skills/list` 为准；文件不在、写坏了，都退化成没有下拉框的原样，不会把页面搞坏。
+
+```json
+{
+  "version": 1,
+  "groups": [
+    { "name": "运行时", "skills": ["dsh-local-runbook", "dsh-plugin-dev"] },
+    { "name": "额度与成本", "skills": ["free-llm-pool"] }
+  ]
+}
+```
+
+- **组按文件里的顺序渲染，组内按数组顺序**（都不是字典序）。没写进任何组的落进页面自带的「（未归组）」，
+  所以**不会有 skill 因为没进配置就从页面上消失**。
+- 改名＝改 `name`。空组照常显示（建了组就得看得见），`skills` 可以留空数组。
+- 服务端**每次请求现读**这个文件：改完存盘 + 刷新页面即生效，**不用重启 `dsh web`**。
+- 一键播种（按那份七类分类账生成初始分组，之后两边各归各、不再同步 —— 语义分类是事实、该有闸，
+  怎么摆是口味、不该有闸）：`python ~/.agents/skills/skill-center-map/scripts/catalog.py --seed-view`
+
+一条边界，写在这儿省得下次又想去建文件夹：宿主 `skills/list` 只回
+`{name, description, whenToUse, modelInvocable}`，**不带任何分类字段**；上游 `discoverRoot()` 也**只扫一层**
+（`<root>/<dir>/SKILL.md`），在技能根下建 `runtime/` 这种子文件夹会让那一整类 skill **从目录里静默消失**。
+所以分组只能待在视图层 —— 这不是偷懒，是唯一不坏事的位置。
+
 ## 本机装载与生效条件
 
 `dsh plugin --profile web add "E:/S_Software/deepseek-harness/plugins/dsh-skill-meter"` 已装进 web profile（`package.json` 的 `link:` 依赖 + `dsh.profile.bundles` + `node_modules` 软链 + lock）。

@@ -75,6 +75,13 @@ await ok('同源请求照常 200，且响应不带 Access-Control-Allow-Origin',
   assert.equal(got.headers['access-control-allow-origin'], undefined)
 })
 
+await ok('载荷里带 view，且它读不到时仍然是空数组（不许把路由搞成 500）', async () => {
+  const got = await call(ctx.routes.get(ROUTE))
+  assert.ok(got.json.view, '载荷该带 view 字段（侧边栏那张卡的分组与排序靠它）')
+  assert.ok(Array.isArray(got.json.view.groups), 'view.groups 必须是数组 —— 文件不在/写坏了都算空')
+  assert.equal(typeof got.json.view.file, 'string', 'view.file 该把真源路径告诉页面，方便排查')
+})
+
 await ok('跨站请求（cross-site + 外部 Origin）403', async () => {
   const got = await call(ctx.routes.get(ROUTE), {
     headers: { origin: 'https://evil.example', 'sec-fetch-site': 'cross-site' },

@@ -172,4 +172,57 @@ assert.ok(flatNoUsage.includes('retired-skill'), '官方清单条目照常渲染
 assert.ok(flatNoUsage.includes('0 / 4 已点亮'), '取不到用量时读数应为 0/4')
 assert.equal(descOfficial.badge(), '0/4', '取不到用量时角标应为 0/4')
 
-console.log('client 冒烟通过：bundle 求值 / 缺服务各自 warn / 兜底态用磁盘清单 / 官方态走 remote.skills.list（含 whenToUse 与 modelInvocable）/ 存档没找到时黄条说明且清单照常渲染')
+// 6) 视图：分组与顺序都来自服务端载荷里的 view（服务端现读 ~/.dsh/skill-view.json）。
+//    它只改「怎么摆」，不改「有哪些」—— 所以下面既钉顺序，也钉「没有 view 时必须回到原样」。
+const tree6 = (payload) => {
+  global.fetch = async () => ({ ok: true, json: async () => payload })
+  reset()
+  render(descOfficial.component)
+  return runEffects().then(() => render(descOfficial.component))
+}
+const viewPayload = Object.assign({}, usage, {
+  view: {
+    file: '/x/.dsh/skill-view.json',
+    groups: [
+      { name: '测试', skills: ['tdd'] },
+      { name: '浏览器与写作', skills: ['dev-browser', 'humanized-developer-reply'] },
+    ],
+  },
+})
+// 假 createElement 把子节点放在 kids 上（不是 props.children），遍历得按这个形状走
+const findType = (tree, type) => {
+  if (!tree || typeof tree !== 'object') return null
+  if (tree.type === type) return tree
+  for (const k of (tree.kids || [])) {
+    const hit = findType(k, type)
+    if (hit) return hit
+  }
+  return null
+}
+const treeV = await tree6(viewPayload)
+const flatView = flatOf(treeV)
+assert.ok(flatView.indexOf('"tdd"') < flatView.indexOf('"dev-browser"'),
+  '组内顺序该按 skill-view.json，不是宿主给的次序')
+assert.ok(flatView.indexOf('"dev-browser"') < flatView.indexOf('"retired-skill"'),
+  '没进任何组的条目该沉到底，不该插进配置好的顺序里')
+assert.ok(flatView.includes('全部分组（4）'), '该长出下拉框，且默认项带总数')
+assert.ok(flatView.includes('测试（1）') && flatView.includes('浏览器与写作（2）'), '每个组该带自己的件数')
+assert.ok(flatView.includes('（未归组）（1）'), '没被任何组收进去的那一件该有兜底桶')
+
+const sel = findType(treeV, 'select')
+assert.ok(sel, '没找到下拉框')
+sel.props.onChange({ target: { value: '测试' } })
+const flatPicked = flatOf(render(descOfficial.component))
+assert.ok(flatPicked.includes('"tdd"'), '选中「测试」该留着 tdd')
+assert.ok(!flatPicked.includes('"dev-browser"'), '选中「测试」不该再显示别的组')
+assert.ok(flatPicked.includes('全部分组（4）'), '筛选后下拉框本身还在')
+
+// 7) 载荷里没有 view（服务端太老，或 ~/.dsh/skill-view.json 不在 / 写坏了）：
+//    必须回到原样，不许长出一个空下拉框 —— 这一条是「文件不在也不能把页面搞坏」的钉子。
+const treeNoView = await tree6(usage)
+const flatNoView = flatOf(treeNoView)
+assert.ok(!flatNoView.includes('全部分组'), '没有视图配置时不该出现下拉框')
+assert.ok(!flatNoView.includes('（未归组）'), '没有视图配置时不该出现兜底桶')
+assert.ok(flatNoView.includes('"dev-browser"'), '没有视图配置时清单照常渲染')
+
+console.log('client 冒烟通过：bundle 求值 / 缺服务各自 warn / 兜底态用磁盘清单 / 官方态走 remote.skills.list（含 whenToUse 与 modelInvocable）/ 存档没找到时黄条说明且清单照常渲染 / 视图分组与顺序按 skill-view.json，无配置时回原样')

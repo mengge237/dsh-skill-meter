@@ -1,6 +1,6 @@
 {
   "name": "dsh-skill-meter",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "description": "把本机 skill 清单与本会话真实用量注册成 dsh-better-sidebar 的侧边栏页面（用过点亮）",
   "type": "module",
   "main": "lib/index.js",
