@@ -10,6 +10,14 @@ import { fileURLToPath } from 'node:url'
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const src = fs.readFileSync(path.join(ROOT, 'lib', 'client.js'), 'utf8')
 
+// 设计规范（来源：better-sidebar 的 docs/external-plugin-guide.md §752）——
+// 「所有视觉值消费 DSH 的 --dsw-alias-* / --dsw-font-* 令牌（**无硬编码颜色**），不做每皮肤适配」。
+// 本页是它的三方 Tab，照同一条来。这条闸防的是「下次又在某个控件里塞一个 #3fb950」。
+// 判据是源码级、零依赖：出现任何 #hex / rgb() / rgba() / hsl() 就算红。
+const hardcodedColors = src.match(/#[0-9a-fA-F]{3,8}\b|rgba?\(|hsla?\(/g) || []
+assert.deepEqual(hardcodedColors, [],
+  '客户端不许有硬编码颜色，一律走 var(--dsw-*) 令牌；命中：' + hardcodedColors.join(', '))
+
 let hooks = [], idx = 0, effects = []
 const react = {
   // 子组件（Row）当函数直接展开，不然它的文本节点不会进树
@@ -152,8 +160,8 @@ assert.equal(descOfficial.badge(), '2/4', '官方态角标按清单内点亮数'
 //    后来改成回一句人话，但「还没有存档」对新会话来说是常态，每条会话都弹一条就成了噪音。
 //    现在的契约：默认情况静默（服务端不带 error 字段），只有真故障（解压失败等）才吭声。
 //    探针用两条横幅的底色 —— 渲染树里有那个颜色就说明横幅出来了。
-const RED = 'rgba(248,81,73'
-const YELLOW = 'rgba(210,153,33'
+const RED = 'var(--dsw-alias-state-error-primary)'
+const YELLOW = 'var(--dsw-alias-state-warn-primary)'
 const noUsage = {
   ok: false,
   reason: 'no-archive',
