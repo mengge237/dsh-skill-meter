@@ -23,6 +23,9 @@ console.log('清单里有但没点亮:', skills.filter(s => !usedNames.has(s.nam
 // 前缀加了两遍，永远命中不了，于是每条真请求都掉进"没找到"分支。
 // ---------------------------------------------------------------------------
 import assert from 'node:assert/strict'
+import fs from 'node:fs'
+// 本文件下面有个本地小工具也叫 path（只是把反斜杠换成斜杠），所以 node:path 换个名字进来
+import nodePath from 'node:path'
 
 const path = f => f.replace(/\\/g, '/')
 const dirIdOf = f => path(f).split('/').slice(-2)[0]
@@ -46,9 +49,60 @@ assert.equal(I.findTranscript('nope'), null, '不存在的裸 id 必须回 null'
 // 带奇怪字符的 id 以前会掉进"取最新"的兜底里，等于静默串会话；现在必须回 null
 assert.equal(I.findTranscript('a b/c'), null, '非法 id 不许回落到最新存档')
 // 空串仍然按"手测"处理：取最新
-assert.equal(I.findTranscript(''), newest)
+// 本机有会话在实时写存档，所以「全库最新」在两次调用之间会翻面 —— 这里不许比相等，
+// 只许比"不更旧"（原写法 assert.equal(findTranscript(''), newest) 在并发写盘时会偶发红）。
+const again = I.findTranscript('')
+assert.ok(again && I.transcriptRank(nodePath.basename(again)) >= 0, '不传 session 时该回落到一份真存档')
+assert.ok(fs.statSync(again).mtimeMs >= fs.statSync(newest).mtimeMs, '回落挑到的那份不许比刚才更新前挑到的更旧')
 
 console.log('会话 id 解析:', dirId, '->', I.findTranscript(dirId) === newest && I.findTranscript(uuidOf(dirId)) === newest ? '两种写法都命中' : '失败')
+
+// ---------------------------------------------------------------------------
+// 回归：存档文件名带版本段。
+// 09-25 本机迁到 v4 之后，在用存档全叫 session.v4.jsonl.zstd；而 findTranscript 原来只认
+// `session.jsonl.zstd` —— 于是每条会话都"存档没找到"、点亮数恒为 0，页面只剩一条提示。
+// 更坏的是：当时的测试也用同一个函数挑存档，跟着一起挑了老的文件类别，所以全绿。
+// 现在拆成「纯函数断言」+「一条不依赖该函数的独立探针」。
+// ---------------------------------------------------------------------------
+assert.equal(I.transcriptRank('session.jsonl.zstd'), 0, '没版本段算 0（v0/v1 时代的名字）')
+assert.equal(I.transcriptRank('session.v3.jsonl.zstd'), 3, 'v3 该认出 3')
+assert.equal(I.transcriptRank('session.v4.jsonl.zstd'), 4, 'v4 该认出 4（当前在用的就是它）')
+assert.equal(I.transcriptRank('session.jsonl.zstd.bak-before-repoint'), -1, '备份件不是存档')
+assert.equal(I.transcriptRank('session.jsonl'), -1, '没有 .zstd 的不是存档（解压那半只吃 zstd）')
+assert.equal(I.transcriptRank('README.md'), -1, '别的文件不是存档')
+
+// 独立探针：自己把全库扫一遍（只用 transcriptRank 这一个纯函数），断言「按 id 找得到
+// 全库最新存档所在的那个会话」，以及「同一目录里挑中的必须是版本最高那一代」。旧代码在这条上必红。
+if (fs.existsSync(I.SESSIONS_ROOT)) {
+  const all = []
+  const collect = (dir, depth) => {
+    if (depth > 2) return
+    let es = []
+    try { es = fs.readdirSync(dir, { withFileTypes: true }) } catch { return }
+    for (const e of es) {
+      const p = nodePath.join(dir, e.name)
+      if (e.isDirectory()) collect(p, depth + 1)
+      else if (I.transcriptRank(e.name) >= 0) all.push(p)
+    }
+  }
+  collect(I.SESSIONS_ROOT, 0)
+  if (all.length) {
+    const mtime = (f) => fs.statSync(f).mtimeMs
+    const newestFile = all.slice().sort((a, b) => mtime(b) - mtime(a))[0]
+    const newestDir = nodePath.dirname(newestFile)
+    const byId = I.findTranscript(nodePath.basename(newestDir))
+    assert.ok(byId, '全库最新存档所在的会话，按 id 必须找得到：' + nodePath.basename(newestDir))
+    assert.equal(nodePath.dirname(byId), newestDir, '按 id 找回来的必须落在同一个会话目录里')
+    const picked = I.findTranscript('')
+    const siblings = fs.readdirSync(nodePath.dirname(picked))
+    const ranks = siblings.map((n) => I.transcriptRank(n)).filter((r) => r >= 0)
+    assert.equal(I.transcriptRank(nodePath.basename(picked)), Math.max(...ranks),
+      '同一目录里有几代存档时，必须挑版本最高的那一代：' + siblings.join(', '))
+    console.log('存档名形态回归: 全库 ' + all.length + ' 份，最新那份 = ' + nodePath.basename(newestFile)
+      + '（挑中的 = ' + nodePath.basename(picked) + '）')
+  }
+}
+
 // ---------------------------------------------------------------------------
 // 回归：视图配置的归一化。它是纯函数，所以这几条在 CI 上也钉得住 ——
 // 不需要机器上真有一份 ~/.dsh/skill-view.json（那条路只保证「读不到 / 读坏了也不抛」）。

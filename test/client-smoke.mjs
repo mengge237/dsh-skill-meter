@@ -147,14 +147,16 @@ assert.ok(flatOfficial.includes('brand-new-skill'), '点亮了但不在官方清
 assert.ok(flatOfficial.includes('retired-skill'), '官方清单里的未点亮条目也该显示')
 assert.equal(descOfficial.badge(), '2/4', '官方态角标按清单内点亮数')
 
-// 5) 服务端 ok:false（这个会话的存档没找到）：说清楚 + 官方清单照常渲染。
-//    这条是「侧边栏整页 HTTP 400」那个 bug 的界面侧钉子：
-//    以前服务端在这条分支上抛 ReferenceError，宿主只回空 body 的 400，
-//    页面就只剩红条「HTTP 400（改过服务端那半个文件而没重启 dsh web 就是这个）」，
-//    把真因（存档没找到）和排查方向（去重启）一起带偏。
+// 5) 服务端 ok:false 且 reason=no-archive（这个会话还没有存档）—— **默认情况，一条提示都不许出**。
+//    历史：这条分支原来抛过 ReferenceError，宿主回空 body 400，页面只剩红条；
+//    后来改成回一句人话，但「还没有存档」对新会话来说是常态，每条会话都弹一条就成了噪音。
+//    现在的契约：默认情况静默（服务端不带 error 字段），只有真故障（解压失败等）才吭声。
+//    探针用两条横幅的底色 —— 渲染树里有那个颜色就说明横幅出来了。
+const RED = 'rgba(248,81,73'
+const YELLOW = 'rgba(210,153,33'
 const noUsage = {
   ok: false,
-  error: '这个会话的存档没找到（不拿别的会话顶上），会话 id: session-11111111-2222-4333-8444-555555555555',
+  reason: 'no-archive',
   session: 'session-11111111-2222-4333-8444-555555555555',
   skills: usage.skills.map((s) => Object.assign({}, s, { lit: false, count: 0, how: [], firstTurn: null, lastTurn: null })),
   lit: 0, total: 4, ghost: [], catalogSeen: [], notInCatalog: [],
@@ -164,13 +166,25 @@ reset()
 render(descOfficial.component)
 await runEffects()
 const flatNoUsage = flatOf(render(descOfficial.component))
-assert.ok(flatNoUsage.includes('这个会话的存档没找到'), '服务端给的说明该原样显示出来')
-assert.ok(!flatNoUsage.includes('用量取数失败'), '存档没找到不是 HTTP 失败，不该报成红条')
-assert.ok(!flatNoUsage.includes('没重启'), '更不该提示去重启 dsh web（真因不是这个）')
+assert.ok(!flatNoUsage.includes(RED), '默认情况不许出红条')
+assert.ok(!flatNoUsage.includes(YELLOW), '默认情况不许出提示条（这条就是用户要求的「不要写这个提示」）')
 assert.ok(flatNoUsage.includes('官方 skills/list'), '取不到用量不影响清单来源标记')
 assert.ok(flatNoUsage.includes('retired-skill'), '官方清单条目照常渲染')
 assert.ok(flatNoUsage.includes('0 / 4 已点亮'), '取不到用量时读数应为 0/4')
 assert.equal(descOfficial.badge(), '0/4', '取不到用量时角标应为 0/4')
+
+// 5b) 真故障（服务端在 ok:true 里带回 error，例如解压失败）—— 这条必须吭声，而且只报那一句，
+//     不许再拖一句「清单照常显示，只是…」的解释尾巴。
+const realErr = Object.assign({}, usage, { error: '解压失败 Unexpected end of file' })
+global.fetch = async () => ({ ok: true, json: async () => realErr })
+reset()
+render(descOfficial.component)
+await runEffects()
+const flatRealErr = flatOf(render(descOfficial.component))
+assert.ok(flatRealErr.includes(YELLOW), '真故障该出提示条')
+assert.ok(flatRealErr.includes('解压失败 Unexpected end of file'), '该原样带出服务端给的错')
+assert.ok(!flatRealErr.includes('清单照常显示'), '不许再拖解释尾巴（那是「有 ai 味」的那种话）')
+assert.ok(flatRealErr.includes('retired-skill'), '出提示不影响清单渲染')
 
 // 6) 视图：分组与顺序都来自服务端载荷里的 view（服务端现读 ~/.dsh/skill-view.json）。
 //    它只改「怎么摆」，不改「有哪些」—— 所以下面既钉顺序，也钉「没有 view 时必须回到原样」。
@@ -225,4 +239,4 @@ assert.ok(!flatNoView.includes('全部分组'), '没有视图配置时不该出�
 assert.ok(!flatNoView.includes('（未归组）'), '没有视图配置时不该出现兜底桶')
 assert.ok(flatNoView.includes('"dev-browser"'), '没有视图配置时清单照常渲染')
 
-console.log('client 冒烟通过：bundle 求值 / 缺服务各自 warn / 兜底态用磁盘清单 / 官方态走 remote.skills.list（含 whenToUse 与 modelInvocable）/ 存档没找到时黄条说明且清单照常渲染 / 视图分组与顺序按 skill-view.json，无配置时回原样')
+console.log('client 冒烟通过：bundle 求值 / 缺服务各自 warn / 兜底态用磁盘清单 / 官方态走 remote.skills.list（含 whenToUse 与 modelInvocable）/ 这个会话还没存档时一条提示都不出且清单照常渲染 / 真故障才出提示且不拖解释尾巴 / 视图分组与顺序按 skill-view.json，无配置时回原样')
