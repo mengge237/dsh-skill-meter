@@ -60,9 +60,14 @@
 （`<root>/<dir>/SKILL.md`），在技能根下建 `runtime/` 这种子文件夹会让那一整类 skill **从目录里静默消失**。
 所以分组只能待在视图层 —— 这不是偷懒，是唯一不坏事的位置。
 
-## 本机装载与生效条件
+## 装载与生效条件
 
-`dsh plugin --profile web add "E:/S_Software/deepseek-harness/plugins/dsh-skill-meter"` 已装进 web profile（`package.json` 的 `link:` 依赖 + `dsh.profile.bundles` + `node_modules` 软链 + lock）。
+```bash
+dsh plugin --profile web add dsh-skill-meter        # 从 registry 装（发布之后）
+dsh plugin --profile web add <仓库根>/plugins/dsh-skill-meter   # 从本地源码开发时装目录
+```
+
+装进 web profile 后会落成 `package.json` 的依赖 + `dsh.profile.bundles` + `node_modules` 软链 + lock。**本机开发用的是后一种（`link:` 指向本地目录）**，改源码即时生效；前一种要等发布。
 
 本包是双面板包：`exports["."]` 是 node 侧（注册 `/dsh-skill-meter/data.json` 路由），`exports["./client"]` 是浏览器侧（宿主客户端模块图里的 `window.__ModuleLoader__.load` bundle，`require('react')` 拿宿主的 react，`inject: ['betterSidebar', 'remote', 'remote.skills']` 后调 `registerTab`）。**服务端那半个文件改了要重启 `dsh web`**（重启会打断当前会话，由人自己点）；**浏览器侧 `lib/client.js` 只要刷新页面（Ctrl+R）**，不碰服务端也不用重启 —— 这一条是这次改动能当场验完的原因。
 
@@ -105,7 +110,8 @@ catalog 条数: 14（会话开始时看到的快照）          点亮: 4 / 18  
 
 ```bash
 # 装（会走 pnpm 写 ~/.dsh/profiles/web，跑之前最好先停掉 dsh web）
-dsh plugin --profile web add "E:/S_Software/deepseek-harness/plugins/dsh-skill-meter"
+dsh plugin --profile web add dsh-skill-meter                       # 从 registry 装
+dsh plugin --profile web add <仓库根>/plugins/dsh-skill-meter       # 从本地源码装（开发用）
 # 之后重启 dsh web —— 只有插件树需要重启，改 lib/client.js 只要刷新页面
 # 卸载
 dsh plugin --profile web remove dsh-skill-meter

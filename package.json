@@ -2,6 +2,26 @@
   "name": "dsh-skill-meter",
   "version": "0.2.3",
   "description": "把本机 skill 清单与本会话真实用量注册成 dsh-better-sidebar 的侧边栏页面（用过点亮）",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mengge237/dsh-skill-meter.git"
+  },
+  "bugs": {
+    "url": "https://github.com/mengge237/dsh-skill-meter/issues"
+  },
+  "homepage": "https://github.com/mengge237/dsh-skill-meter#readme",
+  "keywords": [
+    "dsh",
+    "deepseek-harness",
+    "dsh-better-sidebar",
+    "sidebar",
+    "skills",
+    "plugin"
+  ],
+  "engines": {
+    "node": ">=24"
+  },
   "type": "module",
   "main": "lib/index.js",
   "files": [
@@ -23,6 +43,6 @@
     "./package.json": "./package.json"
   },
   "scripts": {
-    "test": "node test/selftest.mjs && node test/routes.mjs && node test/client-smoke.mjs"
+    "test": "node test/no-local-paths.mjs && node test/selftest.mjs && node test/routes.mjs && node test/client-smoke.mjs"
   }
 }
