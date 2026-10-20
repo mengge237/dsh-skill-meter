@@ -2,6 +2,10 @@
 
 ![lang](https://img.shields.io/badge/lang-JavaScript-informational) ![status](https://img.shields.io/badge/status-maintained-brightgreen)
 
+![右侧栏「Skill 用量」页：页头 1 / 59 已点亮，下面是逐条 skill](docs/screenshot.png)
+
+*真机截图：同一个会话里 `1 / 59 已点亮`，页头右侧标着数据来自 `官方 skills/list` 与「第 36 轮，会话 fdc6daaa」，下面逐条列出 skill（用过地点亮、没用过的压暗），右侧可按「全部 (59)」过滤。*
+
 把「本机有哪些 skill、这个会话真的用过哪几个」做成 **dsh-better-sidebar 的一个侧边栏页面**：右侧栏 `+` 菜单里选「Skill 用量」，页头是 `点亮数 / 总数`，每条 skill 一行 —— 用过地点亮（绿点 + 次数 + 首次/最近第几轮 + 是模型加载还是直接触发），没用过的压暗；底部另列「存档里用到、本机清单里没有」的幽灵名字（改过名或删掉的 skill 一眼看见）。侧边栏本来就按会话隔离，所以这个数就是这个对话的数，不是全局累计。
 
 设置页里的「侧边卡片」分区会自动出现这张卡的开关（`registerTab` 的宿主福利），不用自己造卡片。**曾经的做法是往设置面板里塞一张外来卡片 + 左下角常驻徽标，效果很差，也已经删掉了** —— 宿主早就有侧边栏页面与侧边卡片设置这套扩展点，第三方没有理由再造一个。
