@@ -97,23 +97,10 @@ node test/client-smoke.mjs  # 浏览器侧：假 react + 假 betterSidebar 跑 b
                             # 注册描述符完整性、两遍渲染后的全部读数与角标
 ```
 
-## 数据层实测（本机，2026-09-07）
-
-```
-$ node test/selftest.mjs
-skills 根: <用户主目录>\.agents\skills        清单条数: 18      frontmatter 目录名不一致: []
-选中的存档: .../session-2aaa36ff-.../session.jsonl.zstd   轮次: 13   存档 2.94MB
-已用: humanized-developer-reply x3(模型加载,首2)  dsh-plugin-dev x2(模型加载,首2)
-      dev-browser x1(模型加载,首2)  steampp-network-accel x1(模型加载,首3)
-catalog 条数: 14（会话开始时看到的快照）          点亮: 4 / 18      幽灵: []
-```
-
-四个点亮数与用 python `zstandard` 独立解析同一份存档的结果一致。自检脚本不启动 dsh、不联网、只读。
-
 ## 装与不装
 
 ```bash
-# 装（会走 pnpm 写 ~/.dsh/profiles/web，跑之前最好先停掉 dsh web）
+# 装（会走 pnpm 写 `~/.dsh/profiles/web`，跑之前最好先停掉 dsh web）
 dsh plugin --profile web add dsh-skill-meter                       # 从 registry 装
 dsh plugin --profile web add <仓库根>/plugins/dsh-skill-meter       # 从本地源码装（开发用）
 # 之后重启 dsh web —— 只有插件树需要重启，改 lib/client.js 只要刷新页面
@@ -146,3 +133,8 @@ dsh plugin --profile web remove dsh-skill-meter
 | `lib/client.js` | 浏览器端：徽标 + 面板 + 设置对话框内那张卡片 |
 | `test/selftest.mjs` | 不启动 dsh 直接验数据层（只读） |
 | `cordis.patch.yml` | bundle 挂载声明，与 whale 挂件同形 |
+
+## 更多
+
+- 数据从哪来（两个读口、0.2 起的口径变更）、设置面（0.2.3 起）、数据层自检与 2026-09-07 的本机实测读数 → [docs/internals.md](docs/internals.md)
+- 版本变化 → [CHANGELOG.md](CHANGELOG.md)
